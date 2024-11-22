@@ -112,16 +112,16 @@ This document specifies the system requirements for developing an autonomous par
 \textbf{Name} & \textbf{Unit} & \textbf{Nominal Value} & \textbf{Range} & \textbf{Description} \\
 \midrule
 \endhead
-\textbf{Parking Spot Length} & Inches & 26 & 25--27 & Standard length of a parking spot \\
-\textbf{Parking Spot Width} & Inches & 16 & 15--17 & Standard width of a parking spot \\
-\textbf{Parking Line Width} & Inches & 1 & N/A & Width of the parking lines (tape) \\
-\textbf{Vehicle Width} & Inches & TBD & TBD & Width of the vehicle; to be measured \\
-\textbf{Vehicle Length} & Inches & TBD & TBD & Length of the vehicle; to be measured \\
-\textbf{Sensor Offset} & Inches(x, y) & TBD & TBD & Position from sensor origin to vehicle center \\
+\textbf{Parking Spot Length} & Meters & 0.660 & 0.635--0.686 & Standard length of a parking spot \\
+\textbf{Parking Spot Width} & Meters & 0.406 & 0.381--0.432 & Standard width of a parking spot \\
+\textbf{Parking Line Width} & Meters & 0.0254 & N/A & Width of the parking lines (tape) \\
+\textbf{Vehicle Width} & Meters & TBD & 0.330--0.381 & Width of the vehicle; exact value to be measured \\
+\textbf{Vehicle Length} & Meters & TBD & 0.450--0.550 & Length of the vehicle; exact value to be measured \\
+\textbf{Sensor Offset} & Meters(x, y) & TBD & (0, 0)--(0.250,0.150) & Position from sensor origin to vehicle center; x correlates to length and y correlates to width \\
 \textbf{Max Vehicle Speed} & Meters/second & TBD & TBD & Maximum allowable speed for safety \\
 \textbf{Min Turning Radius} & Meters & TBD & TBD & Minimum turning radius of the vehicle \\
 \textbf{Detection Range} & Meters & TBD & TBD & Maximum effective range of sensors \\
-\textbf{Safety Distance} & Meters & TBD & TBD & Minimum distance to maintain from obstacles \\
+\textbf{Safety Distance} & Meters & TBD & 0.050--0.300 & Minimum distance to maintain from obstacles; exact value to be measured \\
 \bottomrule
 \end{longtable}
 \normalsize % Restore font size
