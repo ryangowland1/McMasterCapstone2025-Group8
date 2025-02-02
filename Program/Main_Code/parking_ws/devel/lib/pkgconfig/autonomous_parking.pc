@@ -1,0 +1,8 @@
+prefix=/home/ryangowland/parking_ws/devel
+
+Name: autonomous_parking
+Description: Description of autonomous_parking
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
