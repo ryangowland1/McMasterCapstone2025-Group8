@@ -1,0 +1,8 @@
+<gazebo>
+  <plugin name="point_cloud_display" filename="libgazebo_ros_point_cloud2.so">
+    <robotNamespace>/</robotNamespace>
+    <topic>/cloud</topic> <!-- Topic where point cloud data is published -->
+    <frame_id>base_link</frame_id> <!-- The frame to use for visualization -->
+    <update_rate>30</update_rate> <!-- How frequently to update the visualization -->
+  </plugin>
+</gazebo>
