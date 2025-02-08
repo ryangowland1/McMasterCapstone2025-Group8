@@ -7,9 +7,5 @@
 # new environment variables
 
 # modified environment variables
-export CMAKE_PREFIX_PATH="/home/ryangowland/parking_ws/devel:$CMAKE_PREFIX_PATH"
-export LD_LIBRARY_PATH="/home/ryangowland/parking_ws/devel/lib:$LD_LIBRARY_PATH"
-export PKG_CONFIG_PATH="/home/ryangowland/parking_ws/devel/lib/pkgconfig:$PKG_CONFIG_PATH"
-export PWD='/home/ryangowland/parking_ws/build'
-export ROSLISP_PACKAGE_DIRECTORIES='/home/ryangowland/parking_ws/devel/share/common-lisp'
-export ROS_PACKAGE_PATH="/home/ryangowland/parking_ws/src:$ROS_PACKAGE_PATH"
+export PWD='/home/ryangowland/Capstone/Program/Main_Code/parking_ws/build'
+export ROS_PACKAGE_PATH='/home/ryangowland/parking_ws/src:/home/ryangowland/Capstone/Program/Main_Code/parking_ws/src:/opt/ros/noetic/share'

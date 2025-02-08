@@ -1,4 +1,4 @@
-prefix=/home/ryangowland/parking_ws/install
+prefix=/home/ryangowland/Capstone/Program/Main_Code/parking_ws/install
 
 Name: autonomous_parking
 Description: Description of autonomous_parking
