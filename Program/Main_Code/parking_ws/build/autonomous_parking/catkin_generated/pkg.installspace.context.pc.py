@@ -4,5 +4,5 @@ PROJECT_PKG_CONFIG_INCLUDE_DIRS = "".split(';') if "" != "" else []
 PROJECT_CATKIN_DEPENDS = "".replace(';', ' ')
 PKG_CONFIG_LIBRARIES_WITH_PREFIX = "".split(';') if "" != "" else []
 PROJECT_NAME = "autonomous_parking"
-PROJECT_SPACE_DIR = "/home/ryangowland/parking_ws/install"
+PROJECT_SPACE_DIR = "/home/ryangowland/Capstone/Program/Main_Code/parking_ws/install"
 PROJECT_VERSION = "0.0.0"

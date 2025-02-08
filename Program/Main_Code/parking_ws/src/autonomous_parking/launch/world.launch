@@ -2,9 +2,6 @@
   <!-- Use simulation time -->
   <param name="use_sim_time" value="true"/>
 
-  <!-- Start Gazebo with an empty world -->
-  <include file="$(find gazebo_ros)/launch/empty_world.launch"/>
-
   <!-- Load your robot model or any other necessary nodes -->
   <node pkg="autonomous_parking" type="Perception" name="Perception"/>
 
@@ -13,4 +10,5 @@
     <!-- Optional: Load a specific RViz config file -->
     <param name="config" value="$(find autonomous_parking)/rviz/config.rviz"/>
   </node>
+
 </launch>
