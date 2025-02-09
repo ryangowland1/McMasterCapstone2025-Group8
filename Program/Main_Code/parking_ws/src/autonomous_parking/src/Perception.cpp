@@ -17,7 +17,7 @@ const int MAX_LINES = 5;
 
 ros::Publisher green_cloud_pub;
 ros::Publisher plane_cloud_pub;
-ros::Publisher line_cloud_pub;
+ros::Publisher line_clouds_pub;
 
 void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -63,6 +63,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
     pcl::ExtractIndices<pcl::PointXYZRGB> extract;
     extract.setInputCloud(plane_cloud);
     float line_distance_threshold = 0.01f;
+    
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr line_clouds(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     for (int i = 0; i < MAX_LINES; ++i) {
         pcl::ModelCoefficients::Ptr line_coefficients(new pcl::ModelCoefficients);
@@ -89,16 +91,18 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
             uint8_t b = (i % 3 == 2) ? 255 : 0;
             uint32_t rgb = (static_cast<uint32_t>(r) << 16 | static_cast<uint32_t>(g) << 8 | static_cast<uint32_t>(b));
             line_cloud->points[j].rgb = *reinterpret_cast<float*>(&rgb);
+            // add this line cloud's points to set of line clouds's points
+            line_clouds->points.push_back(line_cloud->points[j]);
         }
-        sensor_msgs::PointCloud2 line_cloud_msg;
-        pcl::toROSMsg(*line_cloud, line_cloud_msg);
-        line_cloud_msg.header = input_msg->header;
-        line_cloud_pub.publish(line_cloud_msg);
 
         extract.setNegative(true);
         extract.filter(*plane_cloud);
         line_distance_threshold *= 1.1;
     }
+    sensor_msgs::PointCloud2 line_clouds_msg;
+    pcl::toROSMsg(*line_clouds, line_clouds_msg);
+    line_clouds_msg.header = input_msg->header;
+    line_clouds_pub.publish(line_clouds_msg);
 }
 
 int main(int argc, char** argv) {
@@ -108,7 +112,7 @@ int main(int argc, char** argv) {
     
     green_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/green_cloud", 1);
     plane_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/plane_cloud", 1);
-    line_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/line_cloud", 1);
+    line_clouds_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/line_cloud", 1);
     
     ros::spin();
     return 0;
