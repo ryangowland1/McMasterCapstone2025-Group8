@@ -285,17 +285,17 @@ gtest/fast:
 .PHONY : gtest/fast
 
 #=============================================================================
-# Target rules for targets named Perception
+# Target rules for targets named perception
 
 # Build rule for target.
-Perception: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 Perception
-.PHONY : Perception
+perception: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 perception
+.PHONY : perception
 
 # fast build rule for target.
-Perception/fast:
-	$(MAKE) -f autonomous_parking/CMakeFiles/Perception.dir/build.make autonomous_parking/CMakeFiles/Perception.dir/build
-.PHONY : Perception/fast
+perception/fast:
+	$(MAKE) -f autonomous_parking/CMakeFiles/perception.dir/build.make autonomous_parking/CMakeFiles/perception.dir/build
+.PHONY : perception/fast
 
 #=============================================================================
 # Target rules for targets named tf2_msgs_generate_messages_nodejs
@@ -595,6 +595,19 @@ sensor_msgs_generate_messages_py: cmake_check_build_system
 sensor_msgs_generate_messages_py/fast:
 	$(MAKE) -f autonomous_parking/CMakeFiles/sensor_msgs_generate_messages_py.dir/build.make autonomous_parking/CMakeFiles/sensor_msgs_generate_messages_py.dir/build
 .PHONY : sensor_msgs_generate_messages_py/fast
+
+#=============================================================================
+# Target rules for targets named path_planning
+
+# Build rule for target.
+path_planning: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 path_planning
+.PHONY : path_planning
+
+# fast build rule for target.
+path_planning/fast:
+	$(MAKE) -f autonomous_parking/CMakeFiles/path_planning.dir/build.make autonomous_parking/CMakeFiles/path_planning.dir/build
+.PHONY : path_planning/fast
 
 #=============================================================================
 # Target rules for targets named sensor_msgs_generate_messages_nodejs
@@ -1333,7 +1346,7 @@ help:
 	@echo "... gmock"
 	@echo "... gtest_main"
 	@echo "... gtest"
-	@echo "... Perception"
+	@echo "... perception"
 	@echo "... tf2_msgs_generate_messages_nodejs"
 	@echo "... tf2_msgs_generate_messages_lisp"
 	@echo "... actionlib_msgs_generate_messages_py"
@@ -1357,6 +1370,7 @@ help:
 	@echo "... geometry_msgs_generate_messages_py"
 	@echo "... tf2_msgs_generate_messages_eus"
 	@echo "... sensor_msgs_generate_messages_py"
+	@echo "... path_planning"
 	@echo "... sensor_msgs_generate_messages_nodejs"
 	@echo "... tf2_msgs_generate_messages_py"
 	@echo "... dynamic_reconfigure_generate_messages_nodejs"

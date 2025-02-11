@@ -8,4 +8,3 @@
 
 # modified environment variables
 export PWD='/home/ryangowland/Capstone/Program/Main_Code/parking_ws/build'
-export ROS_PACKAGE_PATH='/home/ryangowland/parking_ws/src:/home/ryangowland/Capstone/Program/Main_Code/parking_ws/src:/opt/ros/noetic/share'

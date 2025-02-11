@@ -1,23 +1,90 @@
 #include <ros/ros.h>
+#include <std_msgs/Float32MultiArray.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/common/centroid.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/point_cloud.h>
 #include <vector>
 #include <iostream>
 
 const float GREEN_THRESHOLD = 1.1f;
 const float PLANE_DISTANCE_THRESHOLD = 0.02f;
-const int STATISTICAL_NEIGHBORS = 50;
-const float STANDARD_DEV_MULTIPLIER = 2.0f;
 const int MAX_LINES = 5;
+const float PARKING_MIN_DIST = 0.43f;
+const float PARKING_MAX_DIST = 0.45f;
 
 ros::Publisher green_cloud_pub;
 ros::Publisher plane_cloud_pub;
 ros::Publisher line_clouds_pub;
+ros::Publisher centroid_distance_pub;
+ros::Publisher centroid_cloud_pub;
+ros::Publisher parking_spots_pub; // New publisher for parking spots
+
+void computeCentroidsAndPublishDistances(const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& line_clouds, const std_msgs::Header& header) {
+    std::vector<Eigen::Vector3f> centroids;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr centroid_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr parking_spots(new pcl::PointCloud<pcl::PointXYZRGB>); // Parking spots point cloud
+
+    for (const auto& cloud : line_clouds) {
+        if (cloud->empty()) continue;
+
+        Eigen::Vector4f centroid;
+        pcl::compute3DCentroid(*cloud, centroid);
+        centroids.emplace_back(centroid.head<3>());
+
+        pcl::PointXYZRGB centroid_point;
+        centroid_point.x = centroid[0];
+        centroid_point.y = centroid[1];
+        centroid_point.z = centroid[2];
+        centroid_point.r = 255;
+        centroid_point.g = 0;
+        centroid_point.b = 0;
+        centroid_cloud->points.push_back(centroid_point);
+    }
+
+    sensor_msgs::PointCloud2 centroid_cloud_msg;
+    pcl::toROSMsg(*centroid_cloud, centroid_cloud_msg);
+    centroid_cloud_msg.header = header;
+    centroid_cloud_pub.publish(centroid_cloud_msg);
+
+    std_msgs::Float32MultiArray distances_msg;
+    distances_msg.data.clear();
+
+    for (size_t i = 0; i < centroids.size(); ++i) {
+        for (size_t j = i + 1; j < centroids.size(); ++j) {
+            float distance = (centroids[i] - centroids[j]).norm();
+            distances_msg.data.push_back(distance);
+
+            // Check if the distance is within the parking spot range
+            if (distance >= PARKING_MIN_DIST && distance <= PARKING_MAX_DIST) {
+                Eigen::Vector3f midpoint = (centroids[i] + centroids[j]) / 2.0f;
+
+                pcl::PointXYZRGB parking_spot;
+                parking_spot.x = midpoint[0];
+                parking_spot.y = midpoint[1];
+                parking_spot.z = midpoint[2];
+                parking_spot.r = 0;   // Blue color for parking spot
+                parking_spot.g = 0;
+                parking_spot.b = 255;
+                parking_spots->points.push_back(parking_spot);
+            }
+        }
+    }
+
+    if (!distances_msg.data.empty())
+        centroid_distance_pub.publish(distances_msg);
+
+    // Publish parking spots point cloud
+    sensor_msgs::PointCloud2 parking_spots_msg;
+    pcl::toROSMsg(*parking_spots, parking_spots_msg);
+    parking_spots_msg.header = header;
+    parking_spots_pub.publish(parking_spots_msg);
+}
 
 void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -29,9 +96,6 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
             green_cloud->points.push_back(point);
         }
     }
-    green_cloud->width = green_cloud->points.size();
-    green_cloud->height = 1;
-    green_cloud->is_dense = true;
 
     sensor_msgs::PointCloud2 green_cloud_msg;
     pcl::toROSMsg(*green_cloud, green_cloud_msg);
@@ -52,8 +116,6 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
     for (const auto& idx : inliers->indices) {
         plane_cloud->points.push_back(green_cloud->points[idx]);
     }
-    plane_cloud->width = plane_cloud->points.size();
-    plane_cloud->height = 1;
 
     sensor_msgs::PointCloud2 plane_cloud_msg;
     pcl::toROSMsg(*plane_cloud, plane_cloud_msg);
@@ -64,7 +126,8 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
     extract.setInputCloud(plane_cloud);
     float line_distance_threshold = 0.01f;
     
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr line_clouds(new pcl::PointCloud<pcl::PointXYZRGB>);
+    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> line_clouds;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr all_line_clouds(new pcl::PointCloud<pcl::PointXYZRGB>);
 
     for (int i = 0; i < MAX_LINES; ++i) {
         pcl::ModelCoefficients::Ptr line_coefficients(new pcl::ModelCoefficients);
@@ -85,35 +148,40 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
         extract.setNegative(false);
         extract.filter(*line_cloud);
 
-        for (size_t j = 0; j < line_cloud->points.size(); ++j) {
-            uint8_t r = (i % 3 == 0) ? 255 : 0;
-            uint8_t g = (i % 3 == 1) ? 255 : 0;
-            uint8_t b = (i % 3 == 2) ? 255 : 0;
-            uint32_t rgb = (static_cast<uint32_t>(r) << 16 | static_cast<uint32_t>(g) << 8 | static_cast<uint32_t>(b));
-            line_cloud->points[j].rgb = *reinterpret_cast<float*>(&rgb);
-            // add this line cloud's points to set of line clouds's points
-            line_clouds->points.push_back(line_cloud->points[j]);
+        for (auto& point : line_cloud->points) {
+            point.r = 255;
+            point.g = 255;
+            point.b = 0;
+            all_line_clouds->points.push_back(point);
         }
 
+        line_clouds.push_back(line_cloud);
         extract.setNegative(true);
         extract.filter(*plane_cloud);
         line_distance_threshold *= 1.1;
     }
+
     sensor_msgs::PointCloud2 line_clouds_msg;
-    pcl::toROSMsg(*line_clouds, line_clouds_msg);
+    pcl::toROSMsg(*all_line_clouds, line_clouds_msg);
     line_clouds_msg.header = input_msg->header;
     line_clouds_pub.publish(line_clouds_msg);
+
+    computeCentroidsAndPublishDistances(line_clouds, input_msg->header);
 }
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "pointcloud_processor");
     ros::NodeHandle nh;
+
     ros::Subscriber sub = nh.subscribe("/zed2/zed_node/point_cloud/cloud_registered", 1, pointCloudCallback);
     
     green_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/green_cloud", 1);
     plane_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/plane_cloud", 1);
     line_clouds_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/line_cloud", 1);
-    
+    centroid_distance_pub = nh.advertise<std_msgs::Float32MultiArray>("/processed/centroid_distances", 1);
+    centroid_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/centroid_cloud", 1);
+    parking_spots_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/parking_spots", 1);
+
     ros::spin();
     return 0;
 }
