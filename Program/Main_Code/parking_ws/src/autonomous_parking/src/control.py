@@ -13,13 +13,15 @@ class ControlNode:
     def __init__(self):
         rospy.loginfo("Initializing ControlNode...")
 
-        # TEMPORARY
-        self.trajectory = [[0.2, 0.2]]
-
         # Internal states
+
+        # From Path Planning
         self.trajectory = []
+
+        # Dummy var to force pose reset to zero if there's no path at the beginning
         self.prev_trajectory = []
-        self.first_time = True # dummy var to force trajectory reset to zero at beginning
+
+        self.first_time = True
         self.current_pose = (0.0, 0.0, 0.0)
         self.current_speed = 0.0
         self.aeb_stop = False
@@ -48,6 +50,7 @@ class ControlNode:
 
         rospy.loginfo("ControlNode ready.")
 
+        # NOT IN USE AT THE MOMENT
     # -------------------------------------------------------------------------
     # 8.1. Time-to-Collision AEB (Clause C)
     # -------------------------------------------------------------------------
@@ -83,36 +86,43 @@ class ControlNode:
     # -------------------------------------------------------------------------
     def trajectory_callback(self, msg):
         self.trajectory = []
+
+        # Add each datapoint to the trajectory. Path Planning does not specify a yaw so assumed 0
         for datapoint in msg.poses:
-            # list of (x, y, yaw)
-            self.trajectory.append((datapoint.pose.position.x, datapoint.pose.position.y, 0))
+            # List of (x, y, yaw)
+            self.trajectory.append(
+                (datapoint.pose.position.x, datapoint.pose.position.y, 0))
 
     def odom_callback(self, odom_msg):
         # Extract current pose
         x = odom_msg.pose.pose.position.x
         y = odom_msg.pose.pose.position.y
         orientation = odom_msg.pose.pose.orientation
-        
+
+        # Path Planning resets its frame of reference each time there's a new path so Control needs to do that too for consistency
         if self.trajectory != self.prev_trajectory or self.first_time:
-            # there's a new path with new waypoints so can reset the waypoint indexer
+            # There's a new path with new waypoints so can reset the waypoint indexer
             self.current_waypoint_idx = 0
-            self.odom_zero = [x, y, orientation.x, orientation.y, orientation.z, orientation.w]
+            self.odom_zero = [x, y, orientation.x,
+                              orientation.y, orientation.z, orientation.w]
             self.prev_trajectory = self.trajectory
             first_time = False
-            
+
+        # Set position and orientation to be relative to frame of reference (using _ to indicate such variables)
         position_x = x - self.odom_zero[0]
         position_y = y - self.odom_zero[1]
         orientation_x = orientation.x - self.odom_zero[2]
         orientation_y = orientation.y - self.odom_zero[3]
         orientation_z = orientation.z - self.odom_zero[4]
         orientation_w = orientation.w - self.odom_zero[5]
-        
+
         (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
             [orientation_x, orientation_y, orientation_z, orientation_w]
         )
-        
+
         self.current_pose = (position_x, position_y, yaw)
-         
+
+        # NOT IN USE AT THE MOMENT
         vx = odom_msg.twist.twist.linear.x
         vy = odom_msg.twist.twist.linear.y
         self.current_speed = math.sqrt(vx*vx + vy*vy)
@@ -129,10 +139,12 @@ class ControlNode:
                 # Publish final commands
                 self.cmd_vel_pub.publish(speed_cmd)
                 self.cmd_ang_pub.publish(steer_cmd)
+
             else:
-                # follow the path if available
+                # Follow the path if available
                 if self.trajectory and self.current_waypoint_idx < len(self.trajectory):
-                	# 0th waypoint is current position so start at 1
+
+                    # 0th waypoint is current position so start at 1
                     target = self.trajectory[self.current_waypoint_idx + 1]
                     speed_cmd, steer_cmd = self.pure_pursuit_control(target)
 
@@ -145,18 +157,20 @@ class ControlNode:
                     dy = target[1] - self.current_pose[1]
                     dist_to_wp = math.hypot(dx, dy)
                     if dist_to_wp < 0:  # CHANGE AS NEEDED
-                       self.current_waypoint_idx += 1
+                        self.current_waypoint_idx += 1
+
                 else:
                     # No path or done
                     speed_cmd = 0.0
                     steer_cmd = 0.0
 
+                    # Publish final commands
                     self.cmd_vel_pub.publish(speed_cmd)
                     self.cmd_ang_pub.publish(steer_cmd)
 
             rate.sleep()
 
-        # Pure pursuit control assumes constant speed and controls the steering
+    # Pure pursuit control assumes constant speed and controls the steering
     def pure_pursuit_control(self, target):
         """
         A basic geometric approach to track a single waypoint.
@@ -165,18 +179,18 @@ class ControlNode:
         (x_c, y_c, yaw_c) = self.current_pose
         (x_t, y_t, yaw_t) = target
 
-        # heading error
+        # Heading error
         angle_to_target = math.atan2((y_t - y_c), (x_t - x_c))
-        
-        # flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
+
+        # Flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
         heading_error = -(angle_to_target - yaw_c)
-        
-        # normalize
+
+        # Normalize
         heading_error = math.atan2(
             math.sin(heading_error), math.cos(heading_error))
 
         # Steering
-        k_steering = 1.0 # CHANGE AS NEEDED
+        k_steering = 1.0  # CHANGE AS NEEDED
         steering_cmd = k_steering * heading_error
 
         # Speed depends on heading error
