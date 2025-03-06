@@ -3,6 +3,7 @@
 import rospy
 import math
 import tf
+import numpy as np
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry, Path
@@ -17,16 +18,15 @@ class ControlNode:
 
         # From Path Planning
         self.trajectory = []
+		
+		# Dummy trajectory to force frame of reference reset to zero if there's no path at the beginning
+        self.prev_trajectory = [1]
 
-        # Dummy var to force pose reset to zero if there's no path at the beginning
-        self.prev_trajectory = []
-
-        self.first_time = True
         self.current_pose = (0.0, 0.0, 0.0)
         self.current_speed = 0.0
         self.aeb_stop = False
 
-        self.current_waypoint_idx = 0
+        self.current_waypoint_idx = 1
         self.odom_zero = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
         # Tuning parameters
@@ -97,30 +97,39 @@ class ControlNode:
         # Extract current pose
         x = odom_msg.pose.pose.position.x
         y = odom_msg.pose.pose.position.y
+        z = odom_msg.pose.pose.position.z
+
         orientation = odom_msg.pose.pose.orientation
-
-        # Path Planning resets its frame of reference each time there's a new path so Control needs to do that too for consistency
-        if self.trajectory != self.prev_trajectory or self.first_time:
-            # There's a new path with new waypoints so can reset the waypoint indexer
-            self.current_waypoint_idx = 0
-            self.odom_zero = [x, y, orientation.x,
-                              orientation.y, orientation.z, orientation.w]
-            self.prev_trajectory = self.trajectory
-            first_time = False
-
-        # Set position and orientation to be relative to frame of reference (using _ to indicate such variables)
-        position_x = x - self.odom_zero[0]
-        position_y = y - self.odom_zero[1]
-        orientation_x = orientation.x - self.odom_zero[2]
-        orientation_y = orientation.y - self.odom_zero[3]
-        orientation_z = orientation.z - self.odom_zero[4]
-        orientation_w = orientation.w - self.odom_zero[5]
-
         (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
-            [orientation_x, orientation_y, orientation_z, orientation_w]
+            [orientation.x, orientation.y, orientation.z, orientation.w]
         )
 
-        self.current_pose = (position_x, position_y, yaw)
+        # Path Planning resets its frame of reference each time there's a new path so Control needs to do that too for consistency
+        if self.trajectory != self.prev_trajectory:
+            self.odom_zero = [x, y, z, roll, pitch, yaw]
+
+            # There's a new path with new waypoints so can reset the waypoint indexer
+            # 0th waypoint is current position so start at 1
+            self.current_waypoint_idx = 1
+            self.prev_trajectory = self.trajectory
+            self.first_time = False
+
+        # Set position and orientation to be relative to frame of reference. For an explaniation, see https://medium.com/@parkie0517/rigid-transformation-in-3d-space-translation-and-rotation-d701d8859ba8 or your MECHENG 4K03 notes
+        translation = np.matrix([[1, 0, 0, -self.odom_zero[0]], [
+                                0, 1, 0, -self.odom_zero[1]], [0, 0, 1, -self.odom_zero[2]], [0, 0, 0, 1]])
+        rotation_roll = np.matrix([[1, 0, 0, 0], [0, math.cos(-self.odom_zero[3]), -math.sin(-self.odom_zero[3]), 0], [0, math.sin(-self.odom_zero[3]), math.cos(-self.odom_zero[3]), 0], [0, 0, 0, 1]])
+        rotation_pitch = np.matrix([[math.cos(-self.odom_zero[4]), 0, math.sin(-self.odom_zero[4]), 0], [
+                                   0, 1, 0, 0], [-math.sin(-self.odom_zero[4]), 0, math.cos(-self.odom_zero[4]), 0], [0, 0, 0, 1]])
+        rotation_yaw = np.matrix([[math.cos(-self.odom_zero[5]), -math.sin(-self.odom_zero[5]), 0, 0], [
+                                 math.sin(-self.odom_zero[5]), math.cos(-self.odom_zero[5]), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+        point_new_coord_sys = rotation_roll @ rotation_pitch @ rotation_yaw @ translation @ np.matrix([[x], [y], [z], [1]])    
+        
+        x = point_new_coord_sys[0, 0]
+        y = point_new_coord_sys[1, 0]
+        yaw = yaw - self.odom_zero[5]
+        
+        self.current_pose = (x, y, yaw)
 
         # NOT IN USE AT THE MOMENT
         vx = odom_msg.twist.twist.linear.x
@@ -141,11 +150,10 @@ class ControlNode:
                 self.cmd_ang_pub.publish(steer_cmd)
 
             else:
-                # Follow the path if available
-                if self.trajectory and self.current_waypoint_idx < len(self.trajectory):
-
-                    # 0th waypoint is current position so start at 1
-                    target = self.trajectory[self.current_waypoint_idx + 1]
+                # Follow the path if not done
+                if self.current_waypoint_idx < len(self.trajectory):
+                
+                    target = self.trajectory[self.current_waypoint_idx]
                     speed_cmd, steer_cmd = self.pure_pursuit_control(target)
 
                     # Publish final commands
@@ -156,11 +164,11 @@ class ControlNode:
                     dx = target[0] - self.current_pose[0]
                     dy = target[1] - self.current_pose[1]
                     dist_to_wp = math.hypot(dx, dy)
-                    if dist_to_wp < 0:  # CHANGE AS NEEDED
+                    if dist_to_wp < 0.3:  # CHANGE AS NEEDED, must be high enough to prevent a waypoint from being driven past
                         self.current_waypoint_idx += 1
 
                 else:
-                    # No path or done
+                    # Done
                     speed_cmd = 0.0
                     steer_cmd = 0.0
 
@@ -181,8 +189,8 @@ class ControlNode:
 
         # Heading error
         angle_to_target = math.atan2((y_t - y_c), (x_t - x_c))
-
-        # Flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
+		
+		# Flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
         heading_error = -(angle_to_target - yaw_c)
 
         # Normalize
