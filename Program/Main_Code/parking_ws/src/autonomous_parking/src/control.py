@@ -18,8 +18,8 @@ class ControlNode:
 
         # From Path Planning
         self.trajectory = []
-		
-		# Dummy trajectory to force frame of reference reset to zero if there's no path at the beginning
+
+        # Dummy trajectory to force frame of reference reset to zero if there's no path at the beginning
         self.prev_trajectory = [1]
 
         self.current_pose = (0.0, 0.0, 0.0)
@@ -27,6 +27,7 @@ class ControlNode:
         self.aeb_stop = False
 
         self.current_waypoint_idx = 1
+        self.odom_msg = Odometry()
         self.odom_zero = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
         # Tuning parameters
@@ -94,42 +95,7 @@ class ControlNode:
                 (datapoint.pose.position.x, datapoint.pose.position.y, 0))
 
     def odom_callback(self, odom_msg):
-        # Extract current pose
-        x = odom_msg.pose.pose.position.x
-        y = odom_msg.pose.pose.position.y
-        z = odom_msg.pose.pose.position.z
-
-        orientation = odom_msg.pose.pose.orientation
-        (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
-            [orientation.x, orientation.y, orientation.z, orientation.w]
-        )
-
-        # Path Planning resets its frame of reference each time there's a new path so Control needs to do that too for consistency
-        if self.trajectory != self.prev_trajectory:
-            self.odom_zero = [x, y, z, roll, pitch, yaw]
-
-            # There's a new path with new waypoints so can reset the waypoint indexer
-            # 0th waypoint is current position so start at 1
-            self.current_waypoint_idx = 1
-            self.prev_trajectory = self.trajectory
-            self.first_time = False
-
-        # Set position and orientation to be relative to frame of reference. For an explaniation, see https://medium.com/@parkie0517/rigid-transformation-in-3d-space-translation-and-rotation-d701d8859ba8 or your MECHENG 4K03 notes
-        translation = np.matrix([[1, 0, 0, -self.odom_zero[0]], [
-                                0, 1, 0, -self.odom_zero[1]], [0, 0, 1, -self.odom_zero[2]], [0, 0, 0, 1]])
-        rotation_roll = np.matrix([[1, 0, 0, 0], [0, math.cos(-self.odom_zero[3]), -math.sin(-self.odom_zero[3]), 0], [0, math.sin(-self.odom_zero[3]), math.cos(-self.odom_zero[3]), 0], [0, 0, 0, 1]])
-        rotation_pitch = np.matrix([[math.cos(-self.odom_zero[4]), 0, math.sin(-self.odom_zero[4]), 0], [
-                                   0, 1, 0, 0], [-math.sin(-self.odom_zero[4]), 0, math.cos(-self.odom_zero[4]), 0], [0, 0, 0, 1]])
-        rotation_yaw = np.matrix([[math.cos(-self.odom_zero[5]), -math.sin(-self.odom_zero[5]), 0, 0], [
-                                 math.sin(-self.odom_zero[5]), math.cos(-self.odom_zero[5]), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-
-        point_new_coord_sys = rotation_roll @ rotation_pitch @ rotation_yaw @ translation @ np.matrix([[x], [y], [z], [1]])    
-        
-        x = point_new_coord_sys[0, 0]
-        y = point_new_coord_sys[1, 0]
-        yaw = yaw - self.odom_zero[5]
-        
-        self.current_pose = (x, y, yaw)
+        self.odom_msg = odom_msg
 
         # NOT IN USE AT THE MOMENT
         vx = odom_msg.twist.twist.linear.x
@@ -140,6 +106,46 @@ class ControlNode:
         rate = rospy.Rate(20)  # 20 Hz control loop
 
         while not rospy.is_shutdown():
+            # All this needs to be run with an updated trajectory and odom_msg so can't be in either callback
+            # Extract current pose
+            x = self.odom_msg.pose.pose.position.x
+            y = self.odom_msg.pose.pose.position.y
+            z = self.odom_msg.pose.pose.position.z
+
+            orientation = self.odom_msg.pose.pose.orientation
+            (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
+                [orientation.x, orientation.y, orientation.z, orientation.w]
+            )
+
+            # Path Planning resets its frame of reference each time there's a new path so Control needs to do that too for consistency
+            if self.trajectory != self.prev_trajectory:
+                self.odom_zero = [x, y, z, roll, pitch, yaw]
+
+                # There's a new path with new waypoints so can reset the waypoint indexer
+                # 0th waypoint is current position so start at 1
+                self.current_waypoint_idx = 1
+                self.prev_trajectory = self.trajectory
+                self.first_time = False
+
+            # Set position and orientation to be relative to frame of reference. For an explaniation, see https://medium.com/@parkie0517/rigid-transformation-in-3d-space-translation-and-rotation-d701d8859ba8 or your MECHENG 4K03 notes
+            translation = np.matrix([[1, 0, 0, -self.odom_zero[0]], [
+                                    0, 1, 0, -self.odom_zero[1]], [0, 0, 1, -self.odom_zero[2]], [0, 0, 0, 1]])
+            rotation_roll = np.matrix([[1, 0, 0, 0], [0, math.cos(-self.odom_zero[3]), -math.sin(-self.odom_zero[3]), 0], [
+                                      0, math.sin(-self.odom_zero[3]), math.cos(-self.odom_zero[3]), 0], [0, 0, 0, 1]])
+            rotation_pitch = np.matrix([[math.cos(-self.odom_zero[4]), 0, math.sin(-self.odom_zero[4]), 0], [
+                                       0, 1, 0, 0], [-math.sin(-self.odom_zero[4]), 0, math.cos(-self.odom_zero[4]), 0], [0, 0, 0, 1]])
+            rotation_yaw = np.matrix([[math.cos(-self.odom_zero[5]), -math.sin(-self.odom_zero[5]), 0, 0], [
+                                     math.sin(-self.odom_zero[5]), math.cos(-self.odom_zero[5]), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+            point_new_coord_sys = rotation_roll @ rotation_pitch @ rotation_yaw @ translation @ np.matrix([
+                                                                                                      [x], [y], [z], [1]])
+
+            x = point_new_coord_sys[0, 0]
+            y = point_new_coord_sys[1, 0]
+            yaw = yaw - self.odom_zero[5]
+
+            self.current_pose = (x, y, yaw)
+
             if self.aeb_stop:
                 # emergency stop
                 speed_cmd = 0.0
@@ -152,7 +158,7 @@ class ControlNode:
             else:
                 # Follow the path if not done
                 if self.current_waypoint_idx < len(self.trajectory):
-                
+
                     target = self.trajectory[self.current_waypoint_idx]
                     speed_cmd, steer_cmd = self.pure_pursuit_control(target)
 
@@ -189,9 +195,10 @@ class ControlNode:
 
         # Heading error
         angle_to_target = math.atan2((y_t - y_c), (x_t - x_c))
-		
-		# Flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
+
+        # Flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
         heading_error = -(angle_to_target - yaw_c)
+        # print(x_c, y_c, x_t, y_t, heading_error)
 
         # Normalize
         heading_error = math.atan2(
