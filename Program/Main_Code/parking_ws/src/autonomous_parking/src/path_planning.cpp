@@ -13,9 +13,9 @@ ros::Publisher path_pub;
 
 // Define the starting position (x, y, z)
 const float START_X = 0.0;
-const float START_Y = 0.0;
+const float START_Y = -0.06;
 const float START_Z = 0.0;
-const float END_Y_OFFSET = 0.06;  // Adjust end point y to avoid aiming too high
+const float END_Y_OFFSET = 0;  // Adjust end point y to avoid aiming too high
 
 int empty_count = 0;  // Tracks consecutive empty parking spot cycles
 
