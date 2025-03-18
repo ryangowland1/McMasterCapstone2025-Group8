@@ -3,7 +3,6 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/common/centroid.h>
@@ -12,7 +11,8 @@
 #include <vector>
 #include <iostream>
 
-const float GREEN_THRESHOLD = 1.1f;
+
+const float GREEN_THRESHOLD = 1.05f;
 const float PLANE_DISTANCE_THRESHOLD = 0.02f;
 const int MAX_LINES = 5;
 const float PARKING_MIN_DIST = 0.43f;
@@ -185,3 +185,4 @@ int main(int argc, char** argv) {
     ros::spin();
     return 0;
 }
+

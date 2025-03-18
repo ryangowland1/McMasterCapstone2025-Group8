@@ -15,7 +15,7 @@ ros::Publisher path_pub;
 const float START_X = 0.0;
 const float START_Y = -0.06;
 const float START_Z = 0.0;
-const float END_Y_OFFSET = 0;  // Adjust end point y to avoid aiming too high
+const float END_Y_OFFSET = 0.0;  // Adjust end point y to avoid aiming too high
 
 int empty_count = 0;  // Tracks consecutive empty parking spot cycles
 
@@ -27,9 +27,9 @@ std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f
         float one_minus_t = 1.0 - t;
 
         // Quadratic Bezier curve formula
-        //Eigen::Vector3f point_i = one_minus_t * one_minus_t * start +
-        //                        2 * one_minus_t * t * control +
-        //                        t * t * end;
+        // Eigen::Vector3f point = one_minus_t * one_minus_t * start +
+                                // 2 * one_minus_t * t * control +
+                                // t * t * end;
 
         //Explicit Cubic Bezier curve formula
         Eigen::Vector3f point = one_minus_t * one_minus_t * one_minus_t * start +
@@ -101,11 +101,11 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     control.y() = start.y();
     control.z() = 0.0;  // Force control point to be on ground
 
-    //Compute a control point dynamically to make the curve tangent at the end
+    // Compute a control point dynamically to make the curve tangent at the end
     Eigen::Vector3f control2;
     control2.x() = end.x() - offset_distance;
     control2.y() = end.y();
-    control2.z() = 0.0;   // Force control point to be on ground
+    control2.z() = 0.0;  // Force control point to be on ground
 
     // Generate a smooth curved path
     int num_path_points = 20;  // More points for a smoother curve
@@ -114,7 +114,7 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     // Create a nav_msgs::Path message
     nav_msgs::Path path_msg;
     path_msg.header.stamp = ros::Time::now();
-    path_msg.header.frame_id = "map"; 
+    path_msg.header.frame_id = "zed2_left_camera_frame"; 
 
     path_msg.poses = bezier_path;
 

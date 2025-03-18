@@ -2,13 +2,16 @@
 
 import rospy
 import math
+import sys
 import tf
 import numpy as np
 from std_msgs.msg import Float64
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
-
+from ackermann_msgs.msg import AckermannDriveStamped
+ 
+START_Y = -0.06;
 
 class ControlNode:
     def __init__(self):
@@ -44,10 +47,11 @@ class ControlNode:
         rospy.Subscriber("/zed2/zed_node/odom", Odometry, self.odom_callback)
 
         # Publisher
-        self.cmd_vel_pub = rospy.Publisher("/vesc/commands/motor/speed", Float64,
+        self.cmd_vel_pub = rospy.Publisher("/vesc/test/speed", Float64,
                                            queue_size=10)
-        self.cmd_ang_pub = rospy.Publisher("/vesc/commands/servo/position", Float64,
+        self.cmd_ang_pub = rospy.Publisher("/vesc/test/position", Float64,
                                            queue_size=10)
+
 
         rospy.loginfo("ControlNode ready.")
 
@@ -103,10 +107,13 @@ class ControlNode:
         self.current_speed = math.sqrt(vx*vx + vy*vy)
 
     def run(self):
-        rate = rospy.Rate(20)  # 20 Hz control loop
+        # rate = rospy.Rate(20)  # 20 Hz control loop
+
+	
 
         while not rospy.is_shutdown():
-            # All this needs to be run with an updated trajectory and odom_msg so can't be in either callback
+ 	    
+            # All this needs to be run wish an updated trajectory and odom_msg so can't be in either callback
             # Extract current pose
             x = self.odom_msg.pose.pose.position.x
             y = self.odom_msg.pose.pose.position.y
@@ -127,25 +134,25 @@ class ControlNode:
                 self.prev_trajectory = self.trajectory
                 self.first_time = False
 
-            # Set position and orientation to be relative to frame of reference. For an explaniation, see https://medium.com/@parkie0517/rigid-transformation-in-3d-space-translation-and-rotation-d701d8859ba8 or your MECHENG 4K03 notes
-            translation = np.matrix([[1, 0, 0, -self.odom_zero[0]], [
+            # Set position to be relative to frame of reference. For an explaniation, see https://medium.com/@parkie0517/rigid-transformation-in-3d-space-translation-and-rotation-d701d8859ba8 or your MECHENG 4K03 notes
+            translation = np.array([[1, 0, 0, -self.odom_zero[0]], [
                                     0, 1, 0, -self.odom_zero[1]], [0, 0, 1, -self.odom_zero[2]], [0, 0, 0, 1]])
-            rotation_roll = np.matrix([[1, 0, 0, 0], [0, math.cos(-self.odom_zero[3]), -math.sin(-self.odom_zero[3]), 0], [
+            rotation_roll = np.array([[1, 0, 0, 0], [0, math.cos(-self.odom_zero[3]), -math.sin(-self.odom_zero[3]), 0], [
                                       0, math.sin(-self.odom_zero[3]), math.cos(-self.odom_zero[3]), 0], [0, 0, 0, 1]])
-            rotation_pitch = np.matrix([[math.cos(-self.odom_zero[4]), 0, math.sin(-self.odom_zero[4]), 0], [
+            rotation_pitch = np.array([[math.cos(-self.odom_zero[4]), 0, math.sin(-self.odom_zero[4]), 0], [
                                        0, 1, 0, 0], [-math.sin(-self.odom_zero[4]), 0, math.cos(-self.odom_zero[4]), 0], [0, 0, 0, 1]])
-            rotation_yaw = np.matrix([[math.cos(-self.odom_zero[5]), -math.sin(-self.odom_zero[5]), 0, 0], [
+            rotation_yaw = np.array([[math.cos(-self.odom_zero[5]), -math.sin(-self.odom_zero[5]), 0, 0], [
                                      math.sin(-self.odom_zero[5]), math.cos(-self.odom_zero[5]), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+	    
+	    point_new_coord_sys = np.dot(rotation_roll, np.dot(rotation_pitch, np.dot(rotation_yaw, np.dot(translation, np.array([[x], [y], [z], [1]])))))
 
-            point_new_coord_sys = rotation_roll @ rotation_pitch @ rotation_yaw @ translation @ np.matrix([
-                                                                                                      [x], [y], [z], [1]])
 
-            x = point_new_coord_sys[0, 0]
-            y = point_new_coord_sys[1, 0]
+	    x = point_new_coord_sys[0, 0]
+	    # Moving start point relative to detected points, path planning moves points relative to starting position, so opposite sign compared to path planning
+            y = point_new_coord_sys[1, 0] + START_Y
             yaw = yaw - self.odom_zero[5]
 
             self.current_pose = (x, y, yaw)
-
             if self.aeb_stop:
                 # emergency stop
                 speed_cmd = 0.0
@@ -182,7 +189,8 @@ class ControlNode:
                     self.cmd_vel_pub.publish(speed_cmd)
                     self.cmd_ang_pub.publish(steer_cmd)
 
-            rate.sleep()
+            # rate.sleep()
+            # rospy.logwarn("Hi7")
 
     # Pure pursuit control assumes constant speed and controls the steering
     def pure_pursuit_control(self, target):
@@ -196,9 +204,8 @@ class ControlNode:
         # Heading error
         angle_to_target = math.atan2((y_t - y_c), (x_t - x_c))
 
-        # Flip sign as our y axis points to the left which means positive differences should force a left (negative) turn
-        heading_error = -(angle_to_target - yaw_c)
-        # print(x_c, y_c, x_t, y_t, heading_error)
+        heading_error = (angle_to_target - yaw_c)
+        print(x_c, y_c, x_t, y_t, heading_error)
 
         # Normalize
         heading_error = math.atan2(
@@ -212,6 +219,7 @@ class ControlNode:
         base_speed = self.max_speed
         speed_cmd = base_speed * (1.0 - min(abs(heading_error)/math.pi, 1.0))
         return speed_cmd, steering_cmd
+
 
 
 if __name__ == "__main__":
