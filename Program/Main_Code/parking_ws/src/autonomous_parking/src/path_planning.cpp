@@ -13,23 +13,29 @@ ros::Publisher path_pub;
 
 // Define the starting position (x, y, z)
 const float START_X = 0.0;
-const float START_Y = 0.0;
+const float START_Y = -0.06;
 const float START_Z = 0.0;
-const float END_Y_OFFSET = 0.06;  // Adjust end point y to avoid aiming too high
+const float END_Y_OFFSET = 0.0;  // Adjust end point y to avoid aiming too high
 
 int empty_count = 0;  // Tracks consecutive empty parking spot cycles
 
 // Generate a smooth Bezier path
-std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f& start, const Eigen::Vector3f& control, const Eigen::Vector3f& end, int num_points) {
+std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f& start, const Eigen::Vector3f& control, const Eigen::Vector3f& control2, const Eigen::Vector3f& end, int num_points) {
     std::vector<geometry_msgs::PoseStamped> path;
     for (int i = 0; i <= num_points; ++i) {
         float t = static_cast<float>(i) / num_points;
         float one_minus_t = 1.0 - t;
 
         // Quadratic Bezier curve formula
-        Eigen::Vector3f point = one_minus_t * one_minus_t * start +
-                                2 * one_minus_t * t * control +
-                                t * t * end;
+        // Eigen::Vector3f point = one_minus_t * one_minus_t * start +
+                                // 2 * one_minus_t * t * control +
+                                // t * t * end;
+
+	// Cubic Bezier curve formula
+	Eigen::Vector3f point = one_minus_t * one_minus_t * one_minus_t * start + 
+				 3 * one_minus_t * one_minus_t * t * control +
+				 3 * one_minus_t * t * t * control2 + 
+				 t * t * t * end;
 
         geometry_msgs::PoseStamped pose;
         pose.header.stamp = ros::Time::now();
@@ -87,21 +93,28 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     // Offset the end point's Y value
     Eigen::Vector3f end(closest_spot.x, closest_spot.y + END_Y_OFFSET, 0.0);
 
-    // Compute a control point dynamically to make the curve tangent at the end
+    // Compute a control point dynamically to make the curve tangent at the start
     Eigen::Vector3f control;
     float offset_distance = 0.5 * (end.x() - start.x());  // Adjust control point based on parking spot
     control.x() = start.x() + offset_distance;
     control.y() = start.y();
     control.z() = 0.0;  // Force control point to be on ground
 
+    // Compute a control point dynamically to make the curve tangent at the end
+    Eigen::Vector3f control2;
+    control2.x() = end.x() - offset_distance;
+    control2.y() = end.y();
+    control2.z() = 0.0;  // Force control point to be on ground
+
+
     // Generate a smooth curved path
     int num_path_points = 20;  // More points for a smoother curve
-    std::vector<geometry_msgs::PoseStamped> bezier_path = generateBezierPath(start, control, end, num_path_points);
+    std::vector<geometry_msgs::PoseStamped> bezier_path = generateBezierPath(start, control, control2, end, num_path_points);
 
     // Create a nav_msgs::Path message
     nav_msgs::Path path_msg;
     path_msg.header.stamp = ros::Time::now();
-    path_msg.header.frame_id = "map"; 
+    path_msg.header.frame_id = "zed2_left_camera_frame"; 
 
     path_msg.poses = bezier_path;
 
