@@ -13,6 +13,7 @@
 
 
 const float GREEN_THRESHOLD = 1.05f;
+const float Z_THRESHOLD = -0.1f;
 const float PLANE_DISTANCE_THRESHOLD = 0.02f;
 const int MAX_LINES = 5;
 const float PARKING_MIN_DIST = 0.43f;
@@ -24,6 +25,7 @@ ros::Publisher line_clouds_pub;
 ros::Publisher centroid_distance_pub;
 ros::Publisher centroid_cloud_pub;
 ros::Publisher parking_spots_pub; // New publisher for parking spots
+ros::Publisher obstacle_cloud_pub; // New publisher for obstacles
 
 void computeCentroidsAndPublishDistances(const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& line_clouds, const std_msgs::Header& header) {
     std::vector<Eigen::Vector3f> centroids;
@@ -167,6 +169,18 @@ void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
     line_clouds_pub.publish(line_clouds_msg);
 
     computeCentroidsAndPublishDistances(line_clouds, input_msg->header);
+    
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    for (const auto& point : cloud->points) {
+        if (point.z > Z_THRESHOLD) {
+            obstacle_cloud->points.push_back(point);
+        }
+    }
+
+    sensor_msgs::PointCloud2 obstacle_cloud_msg;
+    pcl::toROSMsg(*obstacle_cloud, obstacle_cloud_msg);
+    obstacle_cloud_msg.header = input_msg->header;
+    obstacle_cloud_pub.publish(obstacle_cloud_msg);
 }
 
 int main(int argc, char** argv) {
@@ -181,6 +195,7 @@ int main(int argc, char** argv) {
     centroid_distance_pub = nh.advertise<std_msgs::Float32MultiArray>("/processed/centroid_distances", 1);
     centroid_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/centroid_cloud", 1);
     parking_spots_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/parking_spots", 1);
+    obstacle_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/obstacle_cloud", 1);
 
     ros::spin();
     return 0;

@@ -31,13 +31,12 @@ std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f
                                 // 2 * one_minus_t * t * control +
                                 // t * t * end;
 
-        //Explicit Cubic Bezier curve formula
-        Eigen::Vector3f point = one_minus_t * one_minus_t * one_minus_t * start +
-                                3 * one_minus_t * one_minus_t * t * control +
-                                3 * one_minus_t * t * t * control2 +
-                                t * t * t * end;
+	// Cubic Bezier curve formula
+	Eigen::Vector3f point = one_minus_t * one_minus_t * one_minus_t * start + 
+				 3 * one_minus_t * one_minus_t * t * control +
+				 3 * one_minus_t * t * t * control2 + 
+				 t * t * t * end;
 
-            
         geometry_msgs::PoseStamped pose;
         pose.header.stamp = ros::Time::now();
         pose.header.frame_id = "map"; 
@@ -106,6 +105,7 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     control2.x() = end.x() - offset_distance;
     control2.y() = end.y();
     control2.z() = 0.0;  // Force control point to be on ground
+
 
     // Generate a smooth curved path
     int num_path_points = 20;  // More points for a smoother curve

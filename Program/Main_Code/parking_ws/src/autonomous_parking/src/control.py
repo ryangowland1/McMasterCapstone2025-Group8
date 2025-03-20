@@ -9,9 +9,9 @@ from std_msgs.msg import Float64
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
-from ackermann_msgs.msg import AckermannDriveStamped
- 
-START_Y = -0.06;
+
+START_Y = -0.06
+
 
 class ControlNode:
     def __init__(self):
@@ -51,7 +51,6 @@ class ControlNode:
                                            queue_size=10)
         self.cmd_ang_pub = rospy.Publisher("/vesc/test/position", Float64,
                                            queue_size=10)
-
 
         rospy.loginfo("ControlNode ready.")
 
@@ -109,10 +108,8 @@ class ControlNode:
     def run(self):
         # rate = rospy.Rate(20)  # 20 Hz control loop
 
-	
-
         while not rospy.is_shutdown():
- 	    
+
             # All this needs to be run wish an updated trajectory and odom_msg so can't be in either callback
             # Extract current pose
             x = self.odom_msg.pose.pose.position.x
@@ -143,12 +140,12 @@ class ControlNode:
                                        0, 1, 0, 0], [-math.sin(-self.odom_zero[4]), 0, math.cos(-self.odom_zero[4]), 0], [0, 0, 0, 1]])
             rotation_yaw = np.array([[math.cos(-self.odom_zero[5]), -math.sin(-self.odom_zero[5]), 0, 0], [
                                      math.sin(-self.odom_zero[5]), math.cos(-self.odom_zero[5]), 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-	    
-	    point_new_coord_sys = np.dot(rotation_roll, np.dot(rotation_pitch, np.dot(rotation_yaw, np.dot(translation, np.array([[x], [y], [z], [1]])))))
 
+            point_new_coord_sys = np.dot(rotation_roll, np.dot(rotation_pitch, np.dot(
+                rotation_yaw, np.dot(translation, np.array([[x], [y], [z], [1]])))))
 
-	    x = point_new_coord_sys[0, 0]
-	    # Moving start point relative to detected points, path planning moves points relative to starting position, so opposite sign compared to path planning
+            x = point_new_coord_sys[0, 0]
+            # Moving start point relative to detected points, path planning moves points relative to starting position, so opposite sign compared to path planning
             y = point_new_coord_sys[1, 0] + START_Y
             yaw = yaw - self.odom_zero[5]
 
@@ -219,7 +216,6 @@ class ControlNode:
         base_speed = self.max_speed
         speed_cmd = base_speed * (1.0 - min(abs(heading_error)/math.pi, 1.0))
         return speed_cmd, steering_cmd
-
 
 
 if __name__ == "__main__":
