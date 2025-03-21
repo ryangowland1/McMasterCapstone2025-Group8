@@ -9,6 +9,7 @@ from std_msgs.msg import Float64
 from geometry_msgs.msg import Pose
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
+from ackermann_msgs.msg import AckermannDriveStamped
 
 START_Y = -0.06
 
@@ -35,7 +36,7 @@ class ControlNode:
 
         # Tuning parameters
         self.lookahead_dist = 0.3
-        self.max_speed = 0.1  # m/s
+        self.max_speed = 0.5  # m/s
         self.aeb_ttc_threshold = 0.5  # seconds
 
         # Subscriptions
@@ -47,10 +48,8 @@ class ControlNode:
         rospy.Subscriber("/zed2/zed_node/odom", Odometry, self.odom_callback)
 
         # Publisher
-        self.cmd_vel_pub = rospy.Publisher("/vesc/test/speed", Float64,
-                                           queue_size=10)
-        self.cmd_ang_pub = rospy.Publisher("/vesc/test/position", Float64,
-                                           queue_size=10)
+        self.cmd_pub = rospy.Publisher(
+            "/ackermann_cmd_mux/input/navigation", AckermannDriveStamped, queue_size=10)
 
         rospy.loginfo("ControlNode ready.")
 
@@ -156,8 +155,12 @@ class ControlNode:
                 steer_cmd = 0.0
 
                 # Publish final commands
-                self.cmd_vel_pub.publish(speed_cmd)
-                self.cmd_ang_pub.publish(steer_cmd)
+                msg = AckermannDriveStamped()
+                msg.drive.speed = speed_cmd
+                msg.drive.acceleration = 0
+                msg.drive.steering_angle = steer_cmd
+                msg.drive.steering_angle_velocity = 0
+                self.cmd_pub.publish(msg)
 
             else:
                 # Follow the path if not done
@@ -167,8 +170,12 @@ class ControlNode:
                     speed_cmd, steer_cmd = self.pure_pursuit_control(target)
 
                     # Publish final commands
-                    self.cmd_vel_pub.publish(speed_cmd)
-                    self.cmd_ang_pub.publish(steer_cmd)
+                    msg = AckermannDriveStamped()
+                    msg.drive.speed = speed_cmd
+                    msg.drive.acceleration = 0.5
+                    msg.drive.steering_angle = steer_cmd
+                    msg.drive.steering_angle_velocity = 1
+                    self.cmd_pub.publish(msg)
 
                     # Check if we reached the waypoint
                     dx = target[0] - self.current_pose[0]
@@ -183,8 +190,12 @@ class ControlNode:
                     steer_cmd = 0.0
 
                     # Publish final commands
-                    self.cmd_vel_pub.publish(speed_cmd)
-                    self.cmd_ang_pub.publish(steer_cmd)
+                    msg = AckermannDriveStamped()
+                    msg.drive.speed = speed_cmd
+                    msg.drive.acceleration = 0
+                    msg.drive.steering_angle = steer_cmd
+                    msg.drive.steering_angle_velocity = 0
+                    self.cmd_pub.publish(msg)
 
             # rate.sleep()
             # rospy.logwarn("Hi7")
