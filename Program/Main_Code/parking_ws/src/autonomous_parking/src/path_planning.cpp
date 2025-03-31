@@ -17,7 +17,11 @@ const float START_Y = -0.06;
 const float START_Z = 0.0;
 const float END_Y_OFFSET = 0.0;  // Adjust end point y to avoid aiming too high
 
+const float SAFETY_DISTANCE = 0.1;  // Minimum distance from all obstacles
+
 int empty_count = 0;  // Tracks consecutive empty parking spot cycles
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZRGB>); // Point cloud of obstacles
 
 // Generate a smooth Bezier path
 std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f& start, const Eigen::Vector3f& control, const Eigen::Vector3f& control2, const Eigen::Vector3f& end, int num_points) {
@@ -50,6 +54,14 @@ std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f
     return path;
 }
 
+void emptyPathPublisher() {
+	nav_msgs::Path empty_path;
+    empty_path.header.stamp = ros::Time::now();
+    empty_path.header.frame_id = "map";
+    path_pub.publish(empty_path);
+    ROS_INFO("Published empty path to clear old parking path.");
+}
+
 void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr parking_spots(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::fromROSMsg(*msg, *parking_spots);
@@ -60,11 +72,7 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
         empty_count++; // Increase empty cycle counter
         if (empty_count >= 2) {
             // Publish an empty path to remove the old one
-            nav_msgs::Path empty_path;
-            empty_path.header.stamp = ros::Time::now();
-            empty_path.header.frame_id = "map";
-            path_pub.publish(empty_path);
-            ROS_INFO("Published empty path to clear old parking path.");
+            emptyPathPublisher();
         }
         return;
     }
@@ -110,6 +118,21 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     // Generate a smooth curved path
     int num_path_points = 20;  // More points for a smoother curve
     std::vector<geometry_msgs::PoseStamped> bezier_path = generateBezierPath(start, control, control2, end, num_path_points);
+    
+    // Publish empty path if obstacle within safety distance of path
+    for (const auto& obstacle_point : obstacle_cloud->points) {
+    	for (const auto& path_point : bezier_path) {
+    		float distance_x = std::pow(path_point.pose.position.x - obstacle_point.x, 2);
+    		float distance_y = std::pow(path_point.pose.position.y - obstacle_point.y, 2);
+    		float distance = std::sqrt(distance_x + distance_y);
+    		
+    		if (distance <= SAFETY_DISTANCE) {
+    			ROS_WARN("Obstacle within %f m of path.", SAFETY_DISTANCE);
+    			emptyPathPublisher();
+    			return;
+    		}
+    	}
+    }
 
     // Create a nav_msgs::Path message
     nav_msgs::Path path_msg;
@@ -124,12 +147,22 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
              end.x(), end.y(), end.z());
 }
 
+void obstacleCloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
+    pcl::fromROSMsg(*msg, *obstacle_cloud);
+
+    if (obstacle_cloud->empty()) {
+        ROS_INFO("No obstacles.");
+        return;
+    }
+}
+
 int main(int argc, char** argv) {
     ros::init(argc, argv, "parking_path_planner");
     ros::NodeHandle nh;
 
     path_pub = nh.advertise<nav_msgs::Path>("/parking_path", 10);
     ros::Subscriber sub = nh.subscribe("/processed/parking_spots", 1, parkingSpotsCallback);
+    ros::Subscriber obstacle_cloud = nh.subscribe("/processed/obstacle_cloud", 1, obstacleCloudCallback);
 
     ros::spin();
     return 0;

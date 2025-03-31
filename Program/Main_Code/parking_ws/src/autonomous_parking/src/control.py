@@ -160,6 +160,7 @@ class ControlNode:
                 msg.drive.acceleration = 0
                 msg.drive.steering_angle = steer_cmd
                 msg.drive.steering_angle_velocity = 0
+                rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                 self.cmd_pub.publish(msg)
 
             else:
@@ -175,6 +176,7 @@ class ControlNode:
                     msg.drive.acceleration = 0.5
                     msg.drive.steering_angle = steer_cmd
                     msg.drive.steering_angle_velocity = 1
+                    rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                     self.cmd_pub.publish(msg)
 
                     # Check if we reached the waypoint
@@ -195,10 +197,10 @@ class ControlNode:
                     msg.drive.acceleration = 0
                     msg.drive.steering_angle = steer_cmd
                     msg.drive.steering_angle_velocity = 0
+                    rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                     self.cmd_pub.publish(msg)
 
             # rate.sleep()
-            # rospy.logwarn("Hi7")
 
     # Pure pursuit control assumes constant speed and controls the steering
     def pure_pursuit_control(self, target):
@@ -213,11 +215,12 @@ class ControlNode:
         angle_to_target = math.atan2((y_t - y_c), (x_t - x_c))
 
         heading_error = (angle_to_target - yaw_c)
-        print(x_c, y_c, x_t, y_t, heading_error)
 
-        # Normalize
+        # Normalize (put within range of -pi to pi)
         heading_error = math.atan2(
             math.sin(heading_error), math.cos(heading_error))
+
+        # print(x_c, y_c, x_t, y_t, heading_error)
 
         # Steering
         k_steering = 1.0  # CHANGE AS NEEDED
@@ -233,4 +236,3 @@ if __name__ == "__main__":
     rospy.init_node("control_node")
     node = ControlNode()
     node.run()
-

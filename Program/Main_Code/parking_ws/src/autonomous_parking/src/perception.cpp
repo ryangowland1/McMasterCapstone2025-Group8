@@ -13,7 +13,7 @@
 
 
 const float GREEN_THRESHOLD = 1.05f;
-const float Z_THRESHOLD = -0.1f;
+const float Z_THRESHOLD = -0.1f; // height (relative to camera), above which all detected points will be considered obstacles
 const float PLANE_DISTANCE_THRESHOLD = 0.02f;
 const int MAX_LINES = 5;
 const float PARKING_MIN_DIST = 0.43f;
