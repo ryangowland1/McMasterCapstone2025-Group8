@@ -17,7 +17,7 @@ const float START_Y = -0.06;
 const float START_Z = 0.0;
 const float END_Y_OFFSET = 0.0;  // Adjust end point y to avoid aiming too high
 
-const float SAFETY_DISTANCE = 0.1;  // Minimum distance from all obstacles
+const float SAFETY_DISTANCE = 0.2;  // Minimum distance from all obstacles
 
 int empty_count = 0;  // Tracks consecutive empty parking spot cycles
 
