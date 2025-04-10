@@ -23,6 +23,10 @@ int empty_count = 0;  // Tracks consecutive empty parking spot cycles
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZRGB>); // Point cloud of obstacles
 
+// Define end position default values 
+const float default_spot_angle = 2*atan(1); //pi/2 = 90deg slope = pull-in by default (if something blocks view for a frame going forwards will usually be generally correct for most paths)
+float spot_angle = default_spot_angle; //initialize with default parking spot orientation
+
 // Generate a smooth Bezier path
 std::vector<geometry_msgs::PoseStamped> generateBezierPath(const Eigen::Vector3f& start, const Eigen::Vector3f& control, const Eigen::Vector3f& control2, const Eigen::Vector3f& end, int num_points) {
     std::vector<geometry_msgs::PoseStamped> path;
@@ -101,17 +105,19 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     // Offset the end point's Y value
     Eigen::Vector3f end(closest_spot.x, closest_spot.y + END_Y_OFFSET, 0.0);
 
-    // Compute a control point dynamically to make the curve tangent at the start
+    //Calculate distance both secondary control points will be from their base points:
+    float offset_distance = 0.5 * (end.x() - start.x()); //use x direction since forwards data is more credible
+
+    // Compute a secondary control point dynamically to make the curve tangent at the start:
     Eigen::Vector3f control;
-    float offset_distance = 0.5 * (end.x() - start.x());  // Adjust control point based on parking spot
     control.x() = start.x() + offset_distance;
     control.y() = start.y();
     control.z() = 0.0;  // Force control point to be on ground
 
-    // Compute a control point dynamically to make the curve tangent at the end
+    // Compute a secondary control point dynamically to make the curve tangent at the end:
     Eigen::Vector3f control2;
-    control2.x() = end.x() - offset_distance;
-    control2.y() = end.y();
+    control2.x() = end.x() - (offset_distance*sin(spot_angle));
+    control2.y() = end.y() - (offset_distance*cos(spot_angle));
     control2.z() = 0.0;  // Force control point to be on ground
 
 
@@ -150,10 +156,40 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 void obstacleCloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     pcl::fromROSMsg(*msg, *obstacle_cloud);
 
-    if (obstacle_cloud->empty()) {
+    if (obstacle_cloud->empty()) { //if no data is passed:
         ROS_INFO("No obstacles.");
         return;
     }
+}
+
+void parkingOrientationCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
+    pcl::fromROSMsg(*msg, *line_cloud);
+
+    if (line_cloud->empty()) { //if no data is passed:
+        ROS_INFO("No parking line.");
+        spot_angle = default_spot_angle; //return angle to default
+        return;
+    }
+
+    float sum_x = 0.0; float sum_y = 0.0; int counter = 0; //P_avg
+    float init_x = 0.0; float init_y = 0.0; //P_0
+
+    for (auto& point : line_cloud->points) {
+        //Point P_avg:
+        sum_x = sum_x + point.x;
+        sum_y = sum_y + point.y;
+        counter++; //find total amount of points
+
+        //Point P_0:
+        if(counter == 1){ //store starting values seperately to be initial point
+            init_x = point.x;
+            init_y = point.y;
+        }
+    }
+    sum_x = sum_x/counter; sum_y = sum_y/counter; //Point P_avg found
+    
+    //output parking space orientation:
+    spot_angle = atan((sum_x-init_x)/(sum_y-init_y)) //difference in x between points = opposite, difference in y between points = adjacent, atan(opp/adj) = slope <
 }
 
 int main(int argc, char** argv) {
@@ -163,6 +199,7 @@ int main(int argc, char** argv) {
     path_pub = nh.advertise<nav_msgs::Path>("/parking_path", 10);
     ros::Subscriber sub = nh.subscribe("/processed/parking_spots", 1, parkingSpotsCallback);
     ros::Subscriber obstacle_cloud = nh.subscribe("/processed/obstacle_cloud", 1, obstacleCloudCallback);
+    ros::Subscriber line_cloud = nh.subscribe("/processed/line_cloud", 1, parkingOrientationCallback)
 
     ros::spin();
     return 0;
