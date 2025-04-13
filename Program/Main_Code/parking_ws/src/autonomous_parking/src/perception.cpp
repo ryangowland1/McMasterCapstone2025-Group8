@@ -81,7 +81,6 @@ void computeCentroidsAndPublishDistances(const std::vector<pcl::PointCloud<pcl::
                 if (parking_spot_line_cloud -> empty()) {
                 	for (const auto& point : line_clouds[i]->points) {
 						parking_spot_line_cloud->points.push_back(point);
-						break;
 					}
                 }
             }

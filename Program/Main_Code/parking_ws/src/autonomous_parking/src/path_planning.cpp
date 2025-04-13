@@ -116,8 +116,8 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     // Compute a secondary control point dynamically to make the curve tangent at the end:
     Eigen::Vector3f control2;
-    control2.x() = end.x() - (offset_distance*cos(spot_angle));
-    control2.y() = end.y() - (offset_distance*sin(spot_angle));
+    control2.x() = end.x() + (offset_distance*sin(spot_angle));
+    control2.y() = end.y() + (offset_distance*cos(spot_angle));
     control2.z() = 0.0;  // Force control point to be on ground
 
 
