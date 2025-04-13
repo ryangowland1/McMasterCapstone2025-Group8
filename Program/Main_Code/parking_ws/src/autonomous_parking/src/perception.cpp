@@ -22,6 +22,7 @@ const float PARKING_MAX_DIST = 0.45f;
 ros::Publisher green_cloud_pub;
 ros::Publisher plane_cloud_pub;
 ros::Publisher line_clouds_pub;
+ros::Publisher parking_spot_line_cloud_pub; // New publisher for 1st line (which should be the best line per RANSAC) used to make a parking spot
 ros::Publisher centroid_distance_pub;
 ros::Publisher centroid_cloud_pub;
 ros::Publisher parking_spots_pub; // New publisher for parking spots
@@ -31,6 +32,7 @@ void computeCentroidsAndPublishDistances(const std::vector<pcl::PointCloud<pcl::
     std::vector<Eigen::Vector3f> centroids;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr centroid_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr parking_spots(new pcl::PointCloud<pcl::PointXYZRGB>); // Parking spots point cloud
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr parking_spot_line_cloud(new pcl::PointCloud<pcl::PointXYZRGB>); // Point cloud for 1st line used to make a parking spot
 
     for (const auto& cloud : line_clouds) {
         if (cloud->empty()) continue;
@@ -74,6 +76,14 @@ void computeCentroidsAndPublishDistances(const std::vector<pcl::PointCloud<pcl::
                 parking_spot.g = 0;
                 parking_spot.b = 255;
                 parking_spots->points.push_back(parking_spot);
+                
+                // Add first line used to make parking spot to a cloud
+                if (parking_spot_line_cloud -> empty()) {
+                	for (const auto& point : line_clouds[i]->points) {
+						parking_spot_line_cloud->points.push_back(point);
+						break;
+					}
+                }
             }
         }
     }
@@ -86,6 +96,12 @@ void computeCentroidsAndPublishDistances(const std::vector<pcl::PointCloud<pcl::
     pcl::toROSMsg(*parking_spots, parking_spots_msg);
     parking_spots_msg.header = header;
     parking_spots_pub.publish(parking_spots_msg);
+    
+    // Publish parking spot line cloud point cloud
+    sensor_msgs::PointCloud2 parking_spot_line_cloud_msg;
+    pcl::toROSMsg(*parking_spot_line_cloud, parking_spot_line_cloud_msg);
+    parking_spot_line_cloud_msg.header = header;
+    parking_spot_line_cloud_pub.publish(parking_spot_line_cloud_msg);
 }
 
 void pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr& input_msg) {
@@ -192,6 +208,7 @@ int main(int argc, char** argv) {
     green_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/green_cloud", 1);
     plane_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/plane_cloud", 1);
     line_clouds_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/line_cloud", 1);
+    parking_spot_line_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/parking_spot_line_cloud", 1);
     centroid_distance_pub = nh.advertise<std_msgs::Float32MultiArray>("/processed/centroid_distances", 1);
     centroid_cloud_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/centroid_cloud", 1);
     parking_spots_pub = nh.advertise<sensor_msgs::PointCloud2>("/processed/parking_spots", 1);

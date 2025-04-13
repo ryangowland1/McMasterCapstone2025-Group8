@@ -116,8 +116,8 @@ void parkingSpotsCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 
     // Compute a secondary control point dynamically to make the curve tangent at the end:
     Eigen::Vector3f control2;
-    control2.x() = end.x() - (offset_distance*sin(spot_angle));
-    control2.y() = end.y() - (offset_distance*cos(spot_angle));
+    control2.x() = end.x() - (offset_distance*cos(spot_angle));
+    control2.y() = end.y() - (offset_distance*sin(spot_angle));
     control2.z() = 0.0;  // Force control point to be on ground
 
 
@@ -163,6 +163,7 @@ void obstacleCloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
 }
 
 void parkingOrientationCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr line_cloud(new pcl::PointCloud<pcl::PointXYZRGB>); // Cloud of parking lines
     pcl::fromROSMsg(*msg, *line_cloud);
 
     if (line_cloud->empty()) { //if no data is passed:
@@ -189,7 +190,7 @@ void parkingOrientationCallback(const sensor_msgs::PointCloud2ConstPtr& msg) {
     sum_x = sum_x/counter; sum_y = sum_y/counter; //Point P_avg found
     
     //output parking space orientation:
-    spot_angle = atan((sum_x-init_x)/(sum_y-init_y)) //difference in x between points = opposite, difference in y between points = adjacent, atan(opp/adj) = slope <
+    spot_angle = atan2((sum_x-init_x), (sum_y-init_y)); //difference in x between points = opposite, difference in y between points = adjacent, atan(opp/adj) = slope <
 }
 
 int main(int argc, char** argv) {
@@ -199,7 +200,7 @@ int main(int argc, char** argv) {
     path_pub = nh.advertise<nav_msgs::Path>("/parking_path", 10);
     ros::Subscriber sub = nh.subscribe("/processed/parking_spots", 1, parkingSpotsCallback);
     ros::Subscriber obstacle_cloud = nh.subscribe("/processed/obstacle_cloud", 1, obstacleCloudCallback);
-    ros::Subscriber line_cloud = nh.subscribe("/processed/line_cloud", 1, parkingOrientationCallback)
+    ros::Subscriber line_cloud = nh.subscribe("/processed/parking_spot_line_cloud", 1, parkingOrientationCallback);
 
     ros::spin();
     return 0;
