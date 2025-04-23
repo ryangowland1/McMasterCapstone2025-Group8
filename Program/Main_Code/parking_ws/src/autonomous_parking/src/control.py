@@ -105,7 +105,7 @@ class ControlNode:
         self.current_speed = math.sqrt(vx*vx + vy*vy)
 
     def run(self):
-        rate = rospy.Rate(50)  # 50 Hz control loop
+        # rate = rospy.Rate(50)  # 50 Hz control loop
 
         while not rospy.is_shutdown():
 
@@ -209,7 +209,7 @@ class ControlNode:
                     # rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                     self.cmd_pub.publish(msg)
 
-            rate.sleep()
+            # rate.sleep()
 
     # Pure pursuit control assumes constant speed and controls the steering
     def pure_pursuit_control(self, target):
