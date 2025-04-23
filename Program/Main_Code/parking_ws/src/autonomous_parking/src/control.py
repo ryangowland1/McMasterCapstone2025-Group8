@@ -35,7 +35,7 @@ class ControlNode:
         self.odom_zero = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
         # Tuning parameters
-        self.lookahead_dist = 0.3
+        self.lookahead_dist = 0.3 #0.7
         self.max_speed = 0.5  # m/s
         self.aeb_ttc_threshold = 0.5  # seconds
 
@@ -105,7 +105,7 @@ class ControlNode:
         self.current_speed = math.sqrt(vx*vx + vy*vy)
 
     def run(self):
-        # rate = rospy.Rate(20)  # 20 Hz control loop
+        rate = rospy.Rate(50)  # 50 Hz control loop
 
         while not rospy.is_shutdown():
 
@@ -160,7 +160,7 @@ class ControlNode:
                 msg.drive.acceleration = 0
                 msg.drive.steering_angle = steer_cmd
                 msg.drive.steering_angle_velocity = 0
-                rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
+                # rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                 self.cmd_pub.publish(msg)
 
             else:
@@ -176,16 +176,25 @@ class ControlNode:
                     msg.drive.acceleration = 0.5
                     msg.drive.steering_angle = steer_cmd
                     msg.drive.steering_angle_velocity = 1
-                    rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
+                    # rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                     self.cmd_pub.publish(msg)
 
                     # Check if we reached the waypoint
                     dx = target[0] - self.current_pose[0]
                     dy = target[1] - self.current_pose[1]
                     dist_to_wp = math.hypot(dx, dy)
-                    if dist_to_wp < 0.3:  # CHANGE AS NEEDED, must be high enough to prevent a waypoint from being driven past
+                    
+                    while dist_to_wp < self.lookahead_dist:  # CHANGE AS NEEDED, must be high enough to prevent a waypoint from being driven past
                         self.current_waypoint_idx += 1
-
+                        
+                        if (self.current_waypoint_idx == len(self.trajectory)):
+                            break
+                        
+                        target = self.trajectory[self.current_waypoint_idx]
+                        dx = target[0] - self.current_pose[0]
+                        dy = target[1] - self.current_pose[1]
+                        dist_to_wp = math.hypot(dx, dy)
+                        
                 else:
                     # Done
                     speed_cmd = 0.0
@@ -197,10 +206,10 @@ class ControlNode:
                     msg.drive.acceleration = 0
                     msg.drive.steering_angle = steer_cmd
                     msg.drive.steering_angle_velocity = 0
-                    rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
+                    # rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
                     self.cmd_pub.publish(msg)
 
-            # rate.sleep()
+            rate.sleep()
 
     # Pure pursuit control assumes constant speed and controls the steering
     def pure_pursuit_control(self, target):
@@ -223,7 +232,7 @@ class ControlNode:
         # print(x_c, y_c, x_t, y_t, heading_error)
 
         # Steering
-        k_steering = 1.0  # CHANGE AS NEEDED
+        k_steering = 1.0 #2.5 #CHANGE AS NEEDED
         steering_cmd = k_steering * heading_error
 
         # Speed depends on heading error
