@@ -64,7 +64,7 @@ class SimulatorNode:
         now = rospy.Time.now()
 
         # === Make parking spot relative to the current car orientation and shifted by half of car length to get where the centre of the car needs to mocve for the front to park where desired ===
-        # Extract parking spot pose
+        # Extract cuurrent pose
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         z = msg.pose.pose.position.z
@@ -73,6 +73,10 @@ class SimulatorNode:
         (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
             [orientation.x, orientation.y, orientation.z, orientation.w]
         )
+        
+        # 0.554283 comes from diff_drive.sdf
+        x = msg.pose.pose.position.x + 0.554283 * math.cos(yaw) - 0.06 * math.sin(yaw) 
+        y = msg.pose.pose.position.y + 0.554283 * math.sin(yaw) + 0.06 * math.cos(yaw)
 
         self.odom_zero = [x, y, z, roll, pitch, yaw]
 
@@ -121,22 +125,11 @@ class SimulatorNode:
         pub_msg = rnp.point_cloud2.array_to_pointcloud2(point)
         pub_msg.header.stamp = now
         self.parking_spot_line_cloud.publish(pub_msg)
-        
-        now = rospy.Time.now()
-
-        # Extract parking spot pose
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        z = msg.pose.pose.position.z
-
-        orientation = msg.pose.pose.orientation
-        (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(
-            [orientation.x, orientation.y, orientation.z, orientation.w]
-        )
 
         pub_msg = Odometry()
-        pub_msg.pose.pose.position.x = msg.pose.pose.position.x + 0.06 * math.sin(yaw)
-        pub_msg.pose.pose.position.y = msg.pose.pose.position.y - 0.06 * math.cos(yaw)
+        # Adjust odom to move from centre to front left like in the physical version
+        pub_msg.pose.pose.position.x = x
+        pub_msg.pose.pose.position.y = y
         pub_msg.pose.pose.position.z = msg.pose.pose.position.z
         pub_msg.pose.pose.orientation.z = msg.pose.pose.orientation.z
         pub_msg.pose.pose.orientation.w = msg.pose.pose.orientation.w
@@ -151,8 +144,8 @@ class SimulatorNode:
         t.header.stamp = now
         t.header.frame_id = "vehicle_blue/odom"
         t.child_frame_id = "zed2_left_camera_frame"
-        t.transform.translation.x = msg.pose.pose.position.x
-        t.transform.translation.y = msg.pose.pose.position.y
+        t.transform.translation.x = x
+        t.transform.translation.y = y
         t.transform.translation.z = 0.0
         t.transform.rotation.x = 0.0
         t.transform.rotation.y = 0.0
@@ -220,7 +213,8 @@ class SimulatorNode:
         self.line3.publish(marker)
         
     def real_cmds_callback(self, msg):
-        wheelbase = 1.25  # approximate
+        simulated_wheelbase = 1.25 
+        physical_wheelbase = 0.3 # approximate
         control_loop_period = 0.02
 
         global speed_estimate
@@ -231,9 +225,9 @@ class SimulatorNode:
 
         # 0 means as fast as possible, not 0
         if (msg.drive.acceleration == 0):
-            msg.drive.acceleration = 0.05
+            msg.drive.acceleration = 1.0 * simulated_wheelbase / physical_wheelbase
         if (msg.drive.steering_angle_velocity == 0):
-            msg.drive.steering_angle_velocity = 0.1
+            msg.drive.steering_angle_velocity = 2.0
 
         # Estimate actual speed by limiting its change to what the acceleration param sets
         if (speed_cmd - speed_estimate > msg.drive.acceleration * control_loop_period):
@@ -254,8 +248,8 @@ class SimulatorNode:
             steer_estimate = steer_cmd
 
         # Calculate angular velocity
-        calculated_angular_z = speed_estimate * math.tan(steer_estimate) / wheelbase
-
+        calculated_angular_z = speed_estimate * math.tan(steer_estimate) / simulated_wheelbase
+        
         msg = Twist()
         msg.linear.x = speed_estimate
         msg.angular.z = calculated_angular_z
