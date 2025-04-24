@@ -34,12 +34,12 @@ class ControlNode:
         self.odom_msg = Odometry()
         self.odom_zero = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
-        simulated_wheelbase = 0.3 # set to 0.3 for physical opeeration and 1.25 for simulated
-        physical_wheelbase = 0.3
+        self.simulated_wheelbase = 0.3 # set to 0.3 for physical opeeration and 1.25 for simulated
+        self.physical_wheelbase = 0.3
 
         # Tuning parameters
-        self.lookahead_dist = 0.3 * simulated_wheelbase / physical_wheelbase
-        self.max_speed = 0.5 * simulated_wheelbase / physical_wheelbase  # m/s
+        self.lookahead_dist = 0.3 * self.simulated_wheelbase / self.physical_wheelbase
+        self.max_speed = 0.5 * self.simulated_wheelbase / self.physical_wheelbase  # m/s
         self.aeb_ttc_threshold = 0.5  # seconds
 
         # Subscriptions
@@ -187,7 +187,7 @@ class ControlNode:
                     # Publish final commands
                     msg = AckermannDriveStamped()
                     msg.drive.speed = speed_cmd
-                    msg.drive.acceleration = 0.5 * simulated_wheelbase / physical_wheelbase
+                    msg.drive.acceleration = 0.5 * self.simulated_wheelbase / self.physical_wheelbase
                     msg.drive.steering_angle = steer_cmd
                     msg.drive.steering_angle_velocity = 1
                     # rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
