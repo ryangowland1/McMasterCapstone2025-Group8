@@ -187,7 +187,7 @@ class ControlNode:
                     # Publish final commands
                     msg = AckermannDriveStamped()
                     msg.drive.speed = speed_cmd
-                    msg.drive.acceleration = 0.5 * 1.25 / 0.3
+                    msg.drive.acceleration = 0.5 * simulated_wheelbase / physical_wheelbase
                     msg.drive.steering_angle = steer_cmd
                     msg.drive.steering_angle_velocity = 1
                     # rospy.loginfo("Speed: %f m/s. Steering %f rad.", speed_cmd, steer_cmd)
